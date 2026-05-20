@@ -1,0 +1,38 @@
+answer:
+  name: Qwen/Qwen3-30B-A3B-Instruct-2507
+  base_url: http://127.0.0.1:8000/v1
+  api_key_env: LOCAL_LLM_API_KEY
+  temperature: 0.0
+  max_tokens: 8192
+  timeout_seconds: 120
+  max_retries: 2
+  thinking: default
+
+embedding:
+  name: Qwen/Qwen3-Embedding-0.6B
+  base_url: http://127.0.0.1:8001/v1
+  api_key: EMPTY
+  dims: 1024
+  max_model_len: 8192
+  gpu_memory_utilization: 0.05
+  max_input_bytes: 8192
+  normalize: true
+  batch_size: 64
+  query_instruction: Given a web search query, retrieve relevant passages that answer the query
+
+judge:
+  name: deepseek-v4-flash
+  base_url: https://api.deepseek.com
+  api_key_env: DEEPSEEK_API_KEY
+  temperature: 0.0
+  max_tokens: 8192
+  thinking: default
+
+retrieval:
+  chunk_unit: pair
+  top_k: 10
+
+paths:
+  env_file: .env
+  store_root: src/memory/outputs/baseline/stores
+  prediction_file: src/memory/outputs/baseline/predictions.jsonl
