@@ -24,6 +24,7 @@ class EmbeddingClient:
         api_key: str = "EMPTY",
         backend: str = "openai",
         device: str | None = None,
+        dtype: str = "float32",
         batch_size: int = 64,
         normalize: bool = True,
         query_instruction: str = "",
@@ -34,6 +35,7 @@ class EmbeddingClient:
         self.model = model
         self.backend = backend
         self.device = device
+        self.dtype = dtype
         self.batch_size = batch_size
         self.normalize = normalize
         self.query_instruction = query_instruction
@@ -100,7 +102,25 @@ class EmbeddingClient:
             if self.device:
                 kwargs["device"] = self.device
             self.local_model = SentenceTransformer(self.model, **kwargs)
+            self._apply_local_dtype()
         return self.local_model
+
+    def _apply_local_dtype(self) -> None:
+        dtype = self.dtype.lower()
+        if dtype in {"float32", "fp32"}:
+            self.local_model.float()
+        elif dtype in {"float16", "fp16"}:
+            self.local_model.half()
+        elif dtype in {"bfloat16", "bf16"}:
+            try:
+                import torch
+            except ImportError as exc:
+                raise ImportError("bfloat16 local embedding dtype requires torch.") from exc
+            self.local_model.to(dtype=torch.bfloat16)
+        elif dtype in {"auto", ""}:
+            return
+        else:
+            raise ValueError(f"Unsupported local embedding dtype: {self.dtype}")
 
     def _create_embedding(self, batch: list[str]):
         if self.client is None:
