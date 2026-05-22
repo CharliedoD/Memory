@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-from src.memory.core.llm import extract_json_object
-from src.memory.core.schema import Example, RetrievedChunk
+from core.llm import extract_json_object
+from core.schema import Example, RetrievedChunk
 
 
 ANSWER_TEMPLATE = """Answer the user's question based on the provided context.

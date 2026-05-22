@@ -10,8 +10,9 @@
 
 ```yaml
 answer:
-  name: Qwen/Qwen3-30B-A3B-Instruct-2507
-  service: local_vllm_chat_completion
+  name: gpt-4o-mini
+  base_url: https://api.openai.com/v1
+  api_key_env: OPENAI_API_KEY
   temperature: 0.0
   max_tokens: 8192
   thinking: default
@@ -21,11 +22,10 @@ answer:
 
 ```yaml
 embedding:
-  name: Qwen/Qwen3-Embedding-0.6B
-  service: local_vllm_embedding
-  dims: 1024
-  max_model_len: 8192
-  gpu_memory_utilization: 0.05
+  name: text-embedding-3-small
+  base_url: https://api.openai.com/v1
+  api_key_env: OPENAI_API_KEY
+  dims: 1536
   max_input_bytes: 8192
   normalize: true
 ```
@@ -34,9 +34,9 @@ embedding:
 
 ```yaml
 judge:
-  name: deepseek-v4-flash
-  base_url: https://api.deepseek.com
-  api_key_env: DEEPSEEK_API_KEY
+  name: gpt-4o-mini
+  base_url: https://api.openai.com/v1
+  api_key_env: OPENAI_API_KEY
   temperature: 0.0
   max_tokens: 8192
   timeout_seconds: 120
@@ -252,7 +252,7 @@ metrics:
 ### 4.2 代码结构
 
 ```text
-src/memory/
+agent-memory/
   configs/
     base.yaml              # 公共配置：answer、embedding、judge、retrieval、输出路径
 
@@ -294,21 +294,21 @@ src/memory/
 默认配置文件：
 
 ```text
-src/memory/configs/base.yaml
+configs/base.yaml
 ```
 
 命令行中可以临时覆盖部分配置。下面这个例子不会修改 `base.yaml`，只会让本次运行使用 `top_k=20`、`chunk_unit=turn`，并把输出写到指定路径：
 
 ```bash
-python -m src.memory.run_baseline \
-  --config src/memory/configs/base.yaml \
+python -m run_baseline \
+  --config configs/base.yaml \
   --dataset longmemeval \
-  --data src/memory/data/longmemeval_s_cleaned.json \
+  --data data/longmemeval_s_cleaned.json \
   --top-k 20 \
   --chunk-unit turn \
-  --out src/memory/outputs/baseline/predictions.jsonl \
-  --store-root src/memory/outputs/baseline/stores \
-  --log-file src/memory/outputs/logs/baseline.log \
+  --out outputs/baseline/predictions.jsonl \
+  --store-root outputs/baseline/stores \
+  --log-file outputs/logs/baseline.log \
   --mode full \
   --workers 4 \
   --overwrite
@@ -319,12 +319,12 @@ python -m src.memory.run_baseline \
 LongMemEval：
 
 ```bash
-python -m src.memory.run_baseline \
+python -m run_baseline \
   --dataset longmemeval \
-  --data src/memory/data/longmemeval_s_cleaned.json \
-  --out src/memory/outputs/baseline/longmemeval_predictions.jsonl \
-  --store-root src/memory/outputs/baseline/longmemeval_stores \
-  --log-file src/memory/outputs/logs/longmemeval_run.log \
+  --data data/longmemeval_s_cleaned.json \
+  --out outputs/baseline/longmemeval_predictions.jsonl \
+  --store-root outputs/baseline/longmemeval_stores \
+  --log-file outputs/logs/longmemeval_run.log \
   --mode full \
   --top-k 20 \
   --workers 4 \
@@ -334,12 +334,12 @@ python -m src.memory.run_baseline \
 LoCoMo：
 
 ```bash
-python -m src.memory.run_baseline \
+python -m run_baseline \
   --dataset locomo \
-  --data src/memory/data/locomo10.json \
-  --out src/memory/outputs/baseline/locomo_predictions.jsonl \
-  --store-root src/memory/outputs/baseline/locomo_stores \
-  --log-file src/memory/outputs/logs/locomo_run.log \
+  --data data/locomo10.json \
+  --out outputs/baseline/locomo_predictions.jsonl \
+  --store-root outputs/baseline/locomo_stores \
+  --log-file outputs/logs/locomo_run.log \
   --mode full \
   --top-k 20 \
   --workers 2 \
@@ -351,11 +351,11 @@ python -m src.memory.run_baseline \
 只构建 memory：
 
 ```bash
-python -m src.memory.run_baseline \
+python -m run_baseline \
   --dataset longmemeval \
-  --data src/memory/data/longmemeval_s_cleaned.json \
-  --store-root src/memory/outputs/baseline/longmemeval_stores \
-  --log-file src/memory/outputs/logs/longmemeval_build.log \
+  --data data/longmemeval_s_cleaned.json \
+  --store-root outputs/baseline/longmemeval_stores \
+  --log-file outputs/logs/longmemeval_build.log \
   --mode build \
   --workers 4 \
   --overwrite
@@ -364,12 +364,12 @@ python -m src.memory.run_baseline \
 只生成答案：
 
 ```bash
-python -m src.memory.run_baseline \
+python -m run_baseline \
   --dataset longmemeval \
-  --data src/memory/data/longmemeval_s_cleaned.json \
-  --out src/memory/outputs/baseline/longmemeval_predictions.jsonl \
-  --store-root src/memory/outputs/baseline/longmemeval_stores \
-  --log-file src/memory/outputs/logs/longmemeval_query.log \
+  --data data/longmemeval_s_cleaned.json \
+  --out outputs/baseline/longmemeval_predictions.jsonl \
+  --store-root outputs/baseline/longmemeval_stores \
+  --log-file outputs/logs/longmemeval_query.log \
   --mode query \
   --workers 4
 ```
@@ -379,19 +379,19 @@ python -m src.memory.run_baseline \
 先用 judge 模型打标签：
 
 ```bash
-python -m src.memory.evaluation.judge \
-  --pred src/memory/outputs/baseline/longmemeval_predictions.jsonl \
-  --out src/memory/outputs/baseline/longmemeval_predictions.judge.jsonl \
-  --log-file src/memory/outputs/logs/longmemeval_judge.log \
+python -m evaluation.judge \
+  --pred outputs/baseline/longmemeval_predictions.jsonl \
+  --out outputs/baseline/longmemeval_predictions.judge.jsonl \
+  --log-file outputs/logs/longmemeval_judge.log \
   --overwrite
 ```
 
 再统计指标：
 
 ```bash
-python -m src.memory.evaluation.metrics \
-  --pred src/memory/outputs/baseline/longmemeval_predictions.judge.jsonl \
-  --out src/memory/outputs/baseline/longmemeval_metrics.md \
+python -m evaluation.metrics \
+  --pred outputs/baseline/longmemeval_predictions.judge.jsonl \
+  --out outputs/baseline/longmemeval_metrics.md \
   --format markdown
 ```
 
@@ -434,6 +434,6 @@ judge_tokens              # judge 阶段 token
 metrics 文件默认建议保存为 Markdown 表格，包含整体指标和按题目类型分组的指标：
 
 ```text
-src/memory/outputs/baseline/longmemeval_metrics.md  # LongMemEval 指标表
-src/memory/outputs/baseline/locomo_metrics.md       # LoCoMo 指标表
+outputs/baseline/longmemeval_metrics.md  # LongMemEval 指标表
+outputs/baseline/locomo_metrics.md       # LoCoMo 指标表
 ```

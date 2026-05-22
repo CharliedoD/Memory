@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.memory.core.schema import Example
-from src.memory.datasets.locomo import load_locomo_records
-from src.memory.datasets.longmemeval import load_longmemeval_records
+from core.schema import Example
+from datasets.locomo import load_locomo_records
+from datasets.longmemeval import load_longmemeval_records
 
 
 def load_examples(path: str | Path, dataset: str = "auto") -> list[Example]:

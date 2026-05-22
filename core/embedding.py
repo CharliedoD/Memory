@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import random
+import time
 from dataclasses import dataclass
 from typing import Iterable
 
 import numpy as np
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 
 @dataclass(frozen=True)
@@ -24,12 +26,16 @@ class EmbeddingClient:
         normalize: bool = True,
         query_instruction: str = "",
         max_input_bytes: int = 0,
+        max_retries: int = 8,
+        retry_base_seconds: float = 2.0,
     ) -> None:
         self.model = model
         self.batch_size = batch_size
         self.normalize = normalize
         self.query_instruction = query_instruction
         self.max_input_bytes = max_input_bytes
+        self.max_retries = max_retries
+        self.retry_base_seconds = retry_base_seconds
         self.client = OpenAI(api_key=api_key, base_url=base_url)
 
     def embed_documents(self, texts: Iterable[str]) -> EmbeddingResult:
@@ -50,7 +56,7 @@ class EmbeddingClient:
         total_tokens = 0
         for start in range(0, len(items), self.batch_size):
             batch = items[start : start + self.batch_size]
-            response = self.client.embeddings.create(model=self.model, input=batch)
+            response = self._create_embedding(batch)
             vectors.extend(row.embedding for row in sorted(response.data, key=lambda item: item.index))
             usage = getattr(response, "usage", None)
             total_tokens += int(getattr(usage, "total_tokens", 0) or 0)
@@ -60,6 +66,19 @@ class EmbeddingClient:
             norms = np.linalg.norm(arr, axis=1, keepdims=True)
             arr = arr / np.maximum(norms, 1e-12)
         return EmbeddingResult(arr, total_tokens)
+
+    def _create_embedding(self, batch: list[str]):
+        for attempt in range(self.max_retries + 1):
+            try:
+                return self.client.embeddings.create(model=self.model, input=batch)
+            except RateLimitError:
+                if attempt >= self.max_retries:
+                    raise
+                delay = self.retry_base_seconds * (2 ** min(attempt, 5))
+                delay += random.uniform(0.0, self.retry_base_seconds)
+                time.sleep(delay)
+
+        raise RuntimeError("Embedding retry loop exited unexpectedly.")
 
 
 def truncate_utf8(text: str, max_bytes: int) -> str:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.memory.core.schema import Chunk, RetrievedChunk
+from core.schema import Chunk, RetrievedChunk
 
 
 def retrieve_top_k(chunks: list[Chunk], embeddings: np.ndarray, query_embedding: np.ndarray, top_k: int) -> list[RetrievedChunk]:

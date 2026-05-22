@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.memory.core.schema import Chunk, Example, Turn
+from core.schema import Chunk, Example, Turn
 
 
 def build_chunks(example: Example, *, chunk_unit: str) -> list[Chunk]:
@@ -8,6 +8,8 @@ def build_chunks(example: Example, *, chunk_unit: str) -> list[Chunk]:
         return _turn_chunks(example.turns)
     if chunk_unit == "pair":
         return _pair_chunks(example.turns)
+    if chunk_unit == "session":
+        return _session_chunks(example.turns)
     raise ValueError(f"Unsupported chunk_unit: {chunk_unit}")
 
 
@@ -36,6 +38,38 @@ def _pair_chunks(turns: list[Turn]) -> list[Chunk]:
             chunks.append(_single_turn_chunk(len(chunks), turn))
     if pending_user:
         chunks.append(_single_turn_chunk(len(chunks), pending_user))
+    return chunks
+
+
+def _session_chunks(turns: list[Turn]) -> list[Chunk]:
+    chunks: list[Chunk] = []
+    current_session_id = None
+    current_date = ""
+    current_lines: list[str] = []
+
+    def flush() -> None:
+        nonlocal current_lines, current_session_id, current_date
+        if not current_lines:
+            return
+        chunks.append(
+            Chunk(
+                chunk_id=f"session-{len(chunks):05d}",
+                text="\n".join(current_lines),
+                date=current_date,
+                session_id=str(current_session_id or ""),
+            )
+        )
+        current_lines = []
+
+    for turn in turns:
+        session_id = turn.session_id or f"turn-{len(chunks):05d}"
+        if current_session_id is not None and session_id != current_session_id:
+            flush()
+        current_session_id = session_id
+        current_date = turn.date or current_date
+        current_lines.append(f"{turn.role}: {turn.content}")
+
+    flush()
     return chunks
 
 
