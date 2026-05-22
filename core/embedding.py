@@ -22,6 +22,8 @@ class EmbeddingClient:
         model: str,
         base_url: str,
         api_key: str = "EMPTY",
+        backend: str = "openai",
+        device: str | None = None,
         batch_size: int = 64,
         normalize: bool = True,
         query_instruction: str = "",
@@ -30,13 +32,16 @@ class EmbeddingClient:
         retry_base_seconds: float = 2.0,
     ) -> None:
         self.model = model
+        self.backend = backend
+        self.device = device
         self.batch_size = batch_size
         self.normalize = normalize
         self.query_instruction = query_instruction
         self.max_input_bytes = max_input_bytes
         self.max_retries = max_retries
         self.retry_base_seconds = retry_base_seconds
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.client = OpenAI(api_key=api_key, base_url=base_url) if backend == "openai" else None
+        self.local_model = None
 
     def embed_documents(self, texts: Iterable[str]) -> EmbeddingResult:
         return self._embed(texts)
@@ -51,6 +56,10 @@ class EmbeddingClient:
         items = [truncate_utf8(" ".join(str(text).split()), self.max_input_bytes) for text in texts]
         if not items:
             return EmbeddingResult(np.empty((0, 0), dtype=np.float32), 0)
+        if self.backend == "local":
+            return self._embed_local(items)
+        if self.backend != "openai":
+            raise ValueError(f"Unsupported embedding backend: {self.backend}")
 
         vectors: list[list[float]] = []
         total_tokens = 0
@@ -67,7 +76,35 @@ class EmbeddingClient:
             arr = arr / np.maximum(norms, 1e-12)
         return EmbeddingResult(arr, total_tokens)
 
+    def _embed_local(self, items: list[str]) -> EmbeddingResult:
+        model = self._load_local_model()
+        vectors = model.encode(
+            items,
+            batch_size=self.batch_size,
+            normalize_embeddings=self.normalize,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+        return EmbeddingResult(np.asarray(vectors, dtype=np.float32), 0)
+
+    def _load_local_model(self):
+        if self.local_model is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ImportError as exc:
+                raise ImportError(
+                    "Local embedding backend requires sentence-transformers. "
+                    "Install it with: pip install sentence-transformers"
+                ) from exc
+            kwargs = {"trust_remote_code": True}
+            if self.device:
+                kwargs["device"] = self.device
+            self.local_model = SentenceTransformer(self.model, **kwargs)
+        return self.local_model
+
     def _create_embedding(self, batch: list[str]):
+        if self.client is None:
+            raise ValueError("OpenAI embedding client is not initialized.")
         for attempt in range(self.max_retries + 1):
             try:
                 return self.client.embeddings.create(model=self.model, input=batch)

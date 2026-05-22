@@ -71,6 +71,8 @@ def make_baseline(config: dict[str, Any], answer_api_key: str) -> NaiveRagBaseli
             model=str(embedding_cfg["name"]),
             base_url=str(embedding_cfg["base_url"]),
             api_key=embedding_api_key,
+            backend=str(embedding_cfg.get("backend", "openai")),
+            device=str(embedding_cfg.get("device") or "") or None,
             batch_size=int(embedding_cfg.get("batch_size", 64)),
             normalize=bool(embedding_cfg.get("normalize", True)),
             query_instruction=str(embedding_cfg.get("query_instruction", "")),

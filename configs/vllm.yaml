@@ -9,16 +9,18 @@ answer:
   thinking: default
 
 embedding:
-  name: text-embedding-3-small
-  base_url: https://api.openai.com/v1
-  api_key_env: OPENAI_API_KEY
-  dims: 1536
+  backend: local
+  name: ${EMBEDDING_MODEL:-/home/chendong/models/Qwen3-Embedding-0.6B}
+  base_url: ""
+  api_key_env: ""
+  device: ${EMBEDDING_DEVICE:-cuda}
+  dims: 1024
   max_input_bytes: 8192
   normalize: true
   batch_size: 16
   max_retries: 8
   retry_base_seconds: 2.0
-  query_instruction: ""
+  query_instruction: "Given a web search query, retrieve relevant passages that answer the query"
 
 judge:
   name: ${JUDGE_MODEL:-gpt-4o-mini}
