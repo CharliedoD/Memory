@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from core.config import get_config, load_config
+from core.config import expand_env_vars, get_config, load_config
 from core.io import TeeLogger, append_jsonl, completed_ids, load_env_file, load_jsonl
 from core.llm import ChatClient, extract_json_object
 from core.schema import Example
@@ -125,6 +125,7 @@ def main() -> None:
     args = parse_args()
     config = load_config(args.config)
     load_env_file(get_config(config, "paths.env_file", ".env"))
+    config = expand_env_vars(config)
 
     judge_cfg = config["judge"]
     api_key = os.environ.get(str(judge_cfg.get("api_key_env", "DEEPSEEK_API_KEY")), "")

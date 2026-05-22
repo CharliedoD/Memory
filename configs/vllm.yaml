@@ -1,0 +1,45 @@
+answer:
+  name: ${VLLM_MODEL:-local-model}
+  base_url: ${VLLM_BASE_URL:-http://127.0.0.1:8000/v1}
+  api_key_env: VLLM_API_KEY
+  temperature: 0.0
+  max_tokens: 8192
+  timeout_seconds: 300
+  max_retries: 2
+  thinking: default
+
+embedding:
+  name: text-embedding-3-small
+  base_url: https://api.openai.com/v1
+  api_key_env: OPENAI_API_KEY
+  dims: 1536
+  max_input_bytes: 8192
+  normalize: true
+  batch_size: 16
+  max_retries: 8
+  retry_base_seconds: 2.0
+  query_instruction: ""
+
+judge:
+  name: ${JUDGE_MODEL:-gpt-4o-mini}
+  base_url: ${JUDGE_BASE_URL:-https://api.openai.com/v1}
+  api_key_env: JUDGE_API_KEY
+  temperature: 0.0
+  max_tokens: 8192
+  timeout_seconds: 300
+  max_retries: 2
+  thinking: default
+
+retrieval:
+  chunk_unit: pair
+  top_k: 10
+
+memory:
+  mode: raw
+  extract_max_tokens: 2048
+  extract_temperature: 0.0
+
+paths:
+  env_file: .env
+  store_root: outputs/baseline/stores
+  prediction_file: outputs/baseline/predictions.jsonl

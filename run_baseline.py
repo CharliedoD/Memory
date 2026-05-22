@@ -12,7 +12,7 @@ from typing import Any
 
 from baseline.pipeline import NaiveRagBaseline
 from baseline.store import store_exists
-from core.config import get_config, load_config, set_if_not_none
+from core.config import expand_env_vars, get_config, load_config, set_if_not_none
 from core.embedding import EmbeddingClient
 from core.io import TeeLogger, append_jsonl, completed_ids, load_env_file
 from core.llm import ChatClient
@@ -81,6 +81,8 @@ def make_baseline(config: dict[str, Any], answer_api_key: str) -> NaiveRagBaseli
         answer_client=ChatClient(
             api_key=answer_api_key,
             base_url=str(get_config(config, "answer.base_url", "")),
+            timeout_seconds=float(get_config(config, "answer.timeout_seconds", 120.0)),
+            max_retries=int(get_config(config, "answer.max_retries", 2)),
         ),
         config=config,
     )
@@ -186,12 +188,12 @@ def main() -> None:
     if args.mode == "answer":
         args.mode = "query"
     config = load_config(args.config)
+    env_file = get_config(config, "paths.env_file", ".env")
+    load_env_file(env_file)
+    config = expand_env_vars(config)
     set_if_not_none(config, "memory.mode", args.memory_mode)
     set_if_not_none(config, "retrieval.chunk_unit", args.chunk_unit)
     set_if_not_none(config, "retrieval.top_k", args.top_k)
-
-    env_file = get_config(config, "paths.env_file", ".env")
-    load_env_file(env_file)
 
     out, failure_out, store_root, log_file, run_dir = resolve_run_paths(args, config)
     answer_api_key = os.environ.get(str(get_config(config, "answer.api_key_env", "OPENAI_API_KEY")), "")
