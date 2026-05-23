@@ -18,10 +18,11 @@ def retrieve_top_k(chunks: list[Chunk], embeddings: np.ndarray, query_embedding:
                 chunk_id=chunk.chunk_id,
                 text=chunk.text,
                 date=chunk.date,
+                event_date=chunk.event_date,
                 session_id=chunk.session_id,
                 score=float(scores[int(index)]),
                 rank=rank,
+                role=chunk.role,
             )
         )
     return retrieved
-

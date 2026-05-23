@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -9,7 +11,7 @@ from baseline.retrieve import retrieve_top_k
 from baseline.store import load_store, save_store
 from core.embedding import EmbeddingClient
 from core.llm import ChatClient
-from core.schema import Chunk, Example
+from core.schema import Chunk, Example, RetrievedChunk
 from prompts.answer import answer_messages, parse_answer
 from prompts.extract import extraction_messages, parse_extracted_memories
 
@@ -78,13 +80,15 @@ class NaiveRagBaseline:
             )
             total_tokens += result.tokens
             memories = parse_extracted_memories(result.content)
-            for index, text in enumerate(memories):
+            for index, memory in enumerate(memories):
                 extracted_chunks.append(
                     Chunk(
                         chunk_id=f"extract-{source.chunk_id}-{index:02d}",
-                        text=text,
+                        text=memory.text,
                         date=source.date,
+                        event_date=clean_event_date(memory.event_date, source.event_date or source.date),
                         session_id=source.session_id,
+                        role=memory.role,
                     )
                 )
             if progress_callback:
@@ -109,6 +113,7 @@ class NaiveRagBaseline:
         query_embedding = self.embedding_client.embed_query(retrieval_query_text(example))
         top_k = int(self.config["retrieval"]["top_k"])
         retrieved = retrieve_top_k(chunks, embeddings, query_embedding.vectors[0], top_k)
+        retrieved = sort_retrieved_timeline(retrieved)
         retrieved_chunks = [chunk.to_dict() for chunk in retrieved]
         retrieved_session_ids = unique_nonempty(chunk.session_id for chunk in retrieved)
         gold_session_ids = [str(value) for value in example.metadata.get("answer_session_ids", [])]
@@ -143,6 +148,7 @@ class NaiveRagBaseline:
             "memory_mode": build_stats.get("memory_mode", "raw"),
             "chunk_unit": build_stats.get("chunk_unit"),
             "top_k": top_k,
+            "context_order": "event_date_session_date_rank",
             "gold_session_ids": gold_session_ids,
             "retrieved_session_ids": retrieved_session_ids,
             "retrieved_chunks": retrieved_chunks,
@@ -159,8 +165,12 @@ class NaiveRagBaseline:
 
 
 def embedding_text(chunk: Any) -> str:
-    if chunk.date:
-        return f"Date: {chunk.date}\nContent: {chunk.text}"
+    event_date = getattr(chunk, "event_date", "") or getattr(chunk, "date", "")
+    session_date = getattr(chunk, "date", "")
+    if event_date and session_date and event_date != session_date:
+        return f"Event Date: {event_date}\nSession Date: {session_date}\nContent: {chunk.text}"
+    if event_date:
+        return f"Event Date: {event_date}\nContent: {chunk.text}"
     return chunk.text
 
 
@@ -168,6 +178,60 @@ def retrieval_query_text(example: Example) -> str:
     if example.question_date:
         return f"Current Date: {example.question_date}\nQuestion: {example.question}"
     return example.question
+
+
+def sort_retrieved_timeline(retrieved: list[RetrievedChunk]) -> list[RetrievedChunk]:
+    return sorted(retrieved, key=retrieved_timeline_key)
+
+
+def retrieved_timeline_key(chunk: RetrievedChunk) -> tuple[datetime, datetime, int]:
+    return (
+        parse_date_for_sort(chunk.event_date or chunk.date),
+        parse_date_for_sort(chunk.date),
+        chunk.rank,
+    )
+
+
+def clean_event_date(event_date: str, fallback_date: str) -> str:
+    value = str(event_date or "").strip()
+    fallback = str(fallback_date or "").strip()
+    if value and parse_date_for_sort(value) != datetime.max:
+        return value
+    return fallback
+
+
+def parse_date_for_sort(value: str) -> datetime:
+    text = str(value or "").strip()
+    if not text:
+        return datetime.max
+    text = re.sub(r"^[A-Za-z]+,\s+", "", text)
+    candidates = [
+        text,
+        text.replace("/", "-"),
+        text.replace(".", "-"),
+    ]
+    formats = [
+        "%Y-%m-%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m",
+        "%Y",
+        "%d %B %Y",
+        "%B %d, %Y",
+        "%b %d, %Y",
+    ]
+    for candidate in candidates:
+        try:
+            iso_candidate = candidate.replace("Z", "+00:00") if candidate.endswith("Z") else candidate
+            return datetime.fromisoformat(iso_candidate).replace(tzinfo=None)
+        except ValueError:
+            pass
+        for date_format in formats:
+            try:
+                return datetime.strptime(candidate, date_format)
+            except ValueError:
+                continue
+    return datetime.max
 
 
 def unique_nonempty(values: Any) -> list[str]:

@@ -30,7 +30,9 @@ class Chunk:
     chunk_id: str
     text: str
     date: str = ""
+    event_date: str = ""
     session_id: str = ""
+    role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -44,7 +46,8 @@ class RetrievedChunk:
     session_id: str
     score: float
     rank: int
+    event_date: str = ""
+    role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-

@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Memory Pipeline Flowchart</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #162033;
+      --muted: #667085;
+      --line: #cfd6e4;
+      --blue: #2563eb;
+      --green: #16845f;
+      --amber: #b45309;
+      --purple: #6d28d9;
+      --red: #b42318;
+      --soft-blue: #eef4ff;
+      --soft-green: #eefaf5;
+      --soft-amber: #fff7e8;
+      --soft-purple: #f5f0ff;
+      --soft-red: #fff1f0;
+      --soft-gray: #f2f4f7;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(1280px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    header,
+    section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      box-shadow: 0 14px 36px rgba(22, 32, 51, 0.07);
+    }
+
+    header {
+      padding: 28px 32px;
+      margin-bottom: 18px;
+    }
+
+    section {
+      padding: 24px;
+      margin-top: 18px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 30px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 20px;
+      margin-bottom: 14px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      color: var(--muted);
+      margin-top: 9px;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      background: var(--soft-gray);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    .subtitle {
+      max-width: 980px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      border: 1px solid var(--line);
+      background: #fbfcff;
+      padding: 6px 9px;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid transparent;
+    }
+
+    .flow-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    svg {
+      display: block;
+      min-width: 1160px;
+      width: 100%;
+      height: auto;
+    }
+
+    .node {
+      stroke-width: 1.4;
+      rx: 9;
+      ry: 9;
+    }
+
+    .node-title {
+      font-size: 15px;
+      font-weight: 700;
+      fill: var(--ink);
+    }
+
+    .node-sub {
+      font-size: 12px;
+      fill: #536078;
+    }
+
+    .lane-label {
+      font-size: 18px;
+      font-weight: 800;
+      fill: var(--ink);
+    }
+
+    .lane-sub {
+      font-size: 12px;
+      fill: var(--muted);
+    }
+
+    .edge {
+      fill: none;
+      stroke: #8c98ad;
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+
+    .edge-dashed {
+      fill: none;
+      stroke: #8c98ad;
+      stroke-width: 2;
+      stroke-dasharray: 7 6;
+      marker-end: url(#arrow);
+    }
+
+    .edge-label {
+      font-size: 12px;
+      fill: #4f5b70;
+      font-weight: 650;
+    }
+
+    .panel-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: #fbfcff;
+      padding: 15px;
+      min-height: 168px;
+    }
+
+    .panel ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .panel li {
+      margin: 5px 0;
+    }
+
+    .commands {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .commands th,
+    .commands td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 9px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    .commands th {
+      background: #f8fafc;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .commands td:nth-child(2) {
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        width: min(100% - 22px, 1280px);
+        padding-top: 18px;
+      }
+
+      header,
+      section {
+        padding: 18px;
+      }
+
+      .panel-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Agent Memory Pipeline 流程图</h1>
+      <p class="subtitle">
+        这张图展示当前代码的完整链路：Build 先把历史会话建成 memory store；
+        Answer 复用已有 store 做检索、时间线排序和回答；Judge / Metrics 在预测文件上继续评估。
+      </p>
+      <div class="legend">
+        <span class="legend-item"><span class="swatch" style="background: var(--soft-blue); border-color: var(--blue);"></span>输入 / 数据</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--soft-green); border-color: var(--green);"></span>Build / Store</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--soft-amber); border-color: var(--amber);"></span>Answer</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--soft-purple); border-color: var(--purple);"></span>Judge / Metrics</span>
+        <span class="legend-item"><span class="swatch" style="background: var(--soft-red); border-color: var(--red);"></span>可选分支</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>总流程图</h2>
+      <div class="flow-wrap" aria-label="Agent Memory build answer judge metrics flowchart">
+        <svg viewBox="0 0 1320 1020" role="img">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#8c98ad"></path>
+            </marker>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+              <feDropShadow dx="0" dy="7" stdDeviation="7" flood-color="#162033" flood-opacity="0.10"></feDropShadow>
+            </filter>
+          </defs>
+
+          <rect x="28" y="26" width="1264" height="186" fill="#f8fbff" stroke="#cfd6e4"></rect>
+          <text x="50" y="62" class="lane-label">A. 入口与数据选择</text>
+          <text x="50" y="84" class="lane-sub">run_baseline.py 根据 mode、run-name、question-type 决定本次处理哪些样本以及输出到哪里</text>
+
+          <rect x="70" y="112" width="220" height="70" class="node" fill="#eef4ff" stroke="#2563eb" filter="url(#shadow)"></rect>
+          <text x="92" y="140" class="node-title">Dataset JSON</text>
+          <text x="92" y="160" class="node-sub">LongMemEval / LoCoMo</text>
+          <text x="92" y="176" class="node-sub">question + sessions + evidence ids</text>
+
+          <rect x="355" y="112" width="230" height="70" class="node" fill="#eef4ff" stroke="#2563eb" filter="url(#shadow)"></rect>
+          <text x="377" y="140" class="node-title">Filter & Slice</text>
+          <text x="377" y="160" class="node-sub">--question-type / --start / --limit</text>
+          <text x="377" y="176" class="node-sub">选择本次评测样本</text>
+
+          <rect x="650" y="112" width="230" height="70" class="node" fill="#eef4ff" stroke="#2563eb" filter="url(#shadow)"></rect>
+          <text x="672" y="140" class="node-title">Group by memory_id</text>
+          <text x="672" y="160" class="node-sub">同一历史只 build 一次</text>
+          <text x="672" y="176" class="node-sub">多个 question 可复用 store</text>
+
+          <rect x="945" y="112" width="240" height="70" class="node" fill="#eef4ff" stroke="#2563eb" filter="url(#shadow)"></rect>
+          <text x="967" y="140" class="node-title">Run Directory</text>
+          <text x="967" y="160" class="node-sub">outputs/&lt;run-name&gt;/</text>
+          <text x="967" y="176" class="node-sub">隔离 predictions / stores / logs</text>
+
+          <path d="M 290 147 L 347 147" class="edge"></path>
+          <path d="M 585 147 L 642 147" class="edge"></path>
+          <path d="M 880 147 L 937 147" class="edge"></path>
+
+          <rect x="28" y="246" width="1264" height="292" fill="#f8fffb" stroke="#cfd6e4"></rect>
+          <text x="50" y="282" class="lane-label">B. Build：历史会话 → Memory Store</text>
+          <text x="50" y="304" class="lane-sub">mode=build/full 时执行；如果 store 已存在且没有 --rebuild-stores，则跳过</text>
+
+          <rect x="70" y="340" width="205" height="78" class="node" fill="#eefaf5" stroke="#16845f" filter="url(#shadow)"></rect>
+          <text x="92" y="368" class="node-title">Chunking</text>
+          <text x="92" y="388" class="node-sub">turn / pair / session</text>
+          <text x="92" y="404" class="node-sub">写入 event_date / role</text>
+
+          <rect x="345" y="304" width="210" height="70" class="node" fill="#fff1f0" stroke="#b42318" filter="url(#shadow)"></rect>
+          <text x="367" y="332" class="node-title">raw 模式</text>
+          <text x="367" y="352" class="node-sub">chunk 原文直接作为 memory</text>
+
+          <rect x="345" y="424" width="210" height="82" class="node" fill="#fff1f0" stroke="#b42318" filter="url(#shadow)"></rect>
+          <text x="367" y="452" class="node-title">extract 模式</text>
+          <text x="367" y="472" class="node-sub">LLM 从 session 抽 facts</text>
+          <text x="367" y="488" class="node-sub">fact 绑定 event_date / role</text>
+
+          <rect x="625" y="372" width="230" height="82" class="node" fill="#eefaf5" stroke="#16845f" filter="url(#shadow)"></rect>
+          <text x="647" y="400" class="node-title">Embedding</text>
+          <text x="647" y="420" class="node-sub">embedding_text = Event Date + Content</text>
+          <text x="647" y="436" class="node-sub">批量写入向量矩阵</text>
+
+          <rect x="925" y="340" width="230" height="106" class="node" fill="#eefaf5" stroke="#16845f" filter="url(#shadow)"></rect>
+          <text x="947" y="368" class="node-title">Memory Store</text>
+          <text x="947" y="388" class="node-sub">chunks.json</text>
+          <text x="947" y="404" class="node-sub">embeddings.npy</text>
+          <text x="947" y="420" class="node-sub">build_stats.json</text>
+          <text x="947" y="436" class="node-sub">outputs/&lt;run-name&gt;/stores/...</text>
+
+          <path d="M 1065 182 L 1065 238 L 173 238 L 173 332" class="edge"></path>
+          <path d="M 275 379 C 315 379 312 339 337 339" class="edge"></path>
+          <path d="M 275 379 C 315 379 312 465 337 465" class="edge"></path>
+          <path d="M 555 339 C 595 339 587 413 617 413" class="edge"></path>
+          <path d="M 555 465 C 595 465 587 413 617 413" class="edge"></path>
+          <path d="M 855 413 L 917 413" class="edge"></path>
+          <text x="296" y="329" class="edge-label">--memory-mode raw</text>
+          <text x="292" y="500" class="edge-label">--memory-mode extract</text>
+
+          <rect x="28" y="572" width="1264" height="286" fill="#fffaf2" stroke="#cfd6e4"></rect>
+          <text x="50" y="608" class="lane-label">C. Answer：问题 + 已建 Store → Prediction</text>
+          <text x="50" y="630" class="lane-sub">mode=query/answer/full 时执行；默认跳过 predictions.jsonl 里已有 sample_id，除非 --overwrite</text>
+
+          <rect x="70" y="672" width="200" height="78" class="node" fill="#eef4ff" stroke="#2563eb" filter="url(#shadow)"></rect>
+          <text x="92" y="700" class="node-title">Question</text>
+          <text x="92" y="720" class="node-sub">question + question_date</text>
+          <text x="92" y="736" class="node-sub">retrieval_query_text</text>
+
+          <rect x="330" y="672" width="205" height="78" class="node" fill="#fff7e8" stroke="#b45309" filter="url(#shadow)"></rect>
+          <text x="352" y="700" class="node-title">Query Embedding</text>
+          <text x="352" y="720" class="node-sub">同 build embedding 后端</text>
+          <text x="352" y="736" class="node-sub">得到 query vector</text>
+
+          <rect x="595" y="672" width="210" height="78" class="node" fill="#fff7e8" stroke="#b45309" filter="url(#shadow)"></rect>
+          <text x="617" y="700" class="node-title">Top-k Retrieval</text>
+          <text x="617" y="720" class="node-sub">embeddings @ query</text>
+          <text x="617" y="736" class="node-sub">先按相似度取 top_k</text>
+
+          <rect x="865" y="672" width="205" height="78" class="node" fill="#fff7e8" stroke="#b45309" filter="url(#shadow)"></rect>
+          <text x="887" y="700" class="node-title">Timeline Sort</text>
+          <text x="887" y="720" class="node-sub">event_date → session date</text>
+          <text x="887" y="736" class="node-sub">→ similarity rank</text>
+
+          <rect x="1130" y="672" width="125" height="78" class="node" fill="#fff7e8" stroke="#b45309" filter="url(#shadow)"></rect>
+          <text x="1150" y="700" class="node-title">Answer LLM</text>
+          <text x="1150" y="720" class="node-sub">JSON answer</text>
+          <text x="1150" y="736" class="node-sub">hypothesis</text>
+
+          <rect x="945" y="782" width="240" height="52" class="node" fill="#ffffff" stroke="#b45309"></rect>
+          <text x="967" y="804" class="node-title">predictions.jsonl</text>
+          <text x="967" y="824" class="node-sub">retrieved_chunks + recall + tokens</text>
+
+          <path d="M 1155 446 C 1210 510 1210 585 1193 664" class="edge-dashed"></path>
+          <text x="1148" y="548" class="edge-label">load store</text>
+          <path d="M 270 711 L 322 711" class="edge"></path>
+          <path d="M 535 711 L 587 711" class="edge"></path>
+          <path d="M 805 711 L 857 711" class="edge"></path>
+          <path d="M 1070 711 L 1122 711" class="edge"></path>
+          <path d="M 1193 750 L 1193 808 L 1190 808" class="edge"></path>
+
+          <rect x="28" y="892" width="1264" height="96" fill="#fbf7ff" stroke="#cfd6e4"></rect>
+          <text x="50" y="928" class="lane-label">D. Judge / Metrics：Prediction → 评测结果</text>
+          <rect x="355" y="922" width="185" height="46" class="node" fill="#f5f0ff" stroke="#6d28d9"></rect>
+          <text x="377" y="951" class="node-title">Judge Model</text>
+          <rect x="620" y="922" width="220" height="46" class="node" fill="#f5f0ff" stroke="#6d28d9"></rect>
+          <text x="642" y="951" class="node-title">predictions.judge.jsonl</text>
+          <rect x="920" y="922" width="185" height="46" class="node" fill="#f5f0ff" stroke="#6d28d9"></rect>
+          <text x="942" y="951" class="node-title">metrics.html / md / json</text>
+          <path d="M 1065 834 L 1065 878 L 448 878 L 448 914" class="edge"></path>
+          <path d="M 540 945 L 612 945" class="edge"></path>
+          <path d="M 840 945 L 912 945" class="edge"></path>
+        </svg>
+      </div>
+    </section>
+
+    <section>
+      <h2>Build 与 Answer 的输入输出</h2>
+      <div class="panel-grid">
+        <div class="panel">
+          <h3>Build 输入</h3>
+          <ul>
+            <li><code>--data</code>：数据文件，例如 <code>longmemeval_s_cleaned.json</code></li>
+            <li><code>--mode build</code> 或 <code>--mode full</code></li>
+            <li><code>--memory-mode raw/extract</code></li>
+            <li><code>--chunk-unit turn/pair/session</code></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Build 输出</h3>
+          <ul>
+            <li><code>outputs/&lt;run-name&gt;/stores/...</code></li>
+            <li><code>chunks.json</code>：chunk 文本和 provenance</li>
+            <li><code>embeddings.npy</code>：向量矩阵</li>
+            <li><code>build_stats.json</code>：tokens、chunk 数、耗时</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Extract 输出结构</h3>
+          <ul>
+            <li>一个 session 可抽多个 fact</li>
+            <li>每个 fact 独立 embedding</li>
+            <li>绑定 <code>event_date</code>、<code>role</code></li>
+            <li>其他顺序信息不再单独保存，避免 metadata 过重</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Answer 输入</h3>
+          <ul>
+            <li>当前 sample 的 <code>question</code> 和 <code>question_date</code></li>
+            <li>对应 <code>memory_id</code> 的已建 store</li>
+            <li><code>--top-k</code> 控制召回条数</li>
+            <li>不需要重新 build，除非 store 不存在</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Answer 输出</h3>
+          <ul>
+            <li><code>predictions.jsonl</code></li>
+            <li><code>hypothesis</code> / <code>raw_response</code></li>
+            <li><code>retrieved_chunks</code>：保存召回 memory 内容和 session_id</li>
+            <li><code>evidence_session_recall</code> / <code>all_found</code></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>当前可选方式</h3>
+          <ul>
+            <li>运行：<code>build</code>、<code>answer/query</code>、<code>full</code></li>
+            <li>memory：<code>raw</code>、<code>extract</code></li>
+            <li>chunk：<code>turn</code>、<code>pair</code>、<code>session</code></li>
+            <li>后端：OpenAI API 或本地 vLLM</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>常用命令</h2>
+      <table class="commands">
+        <thead>
+          <tr>
+            <th>目的</th>
+            <th>命令</th>
+            <th>主要输出</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Build extract memory</td>
+            <td><code>python run_baseline.py --config configs/vllm.yaml --dataset longmemeval --data ../LongMemEval/data/longmemeval_s_cleaned.json --mode build --run-name lme_s_extract --memory-mode extract --chunk-unit session</code></td>
+            <td><code>outputs/lme_s_extract/stores/</code></td>
+          </tr>
+          <tr>
+            <td>Answer</td>
+            <td><code>python run_baseline.py --config configs/vllm.yaml --dataset longmemeval --data ../LongMemEval/data/longmemeval_s_cleaned.json --mode answer --run-name lme_s_extract --memory-mode extract --chunk-unit session --top-k 20</code></td>
+            <td><code>outputs/lme_s_extract/predictions.jsonl</code></td>
+          </tr>
+          <tr>
+            <td>Judge</td>
+            <td><code>python -m evaluation.judge --config configs/vllm.yaml --run-name lme_s_extract</code></td>
+            <td><code>outputs/lme_s_extract/predictions.judge.jsonl</code></td>
+          </tr>
+          <tr>
+            <td>Metrics HTML</td>
+            <td><code>python -m evaluation.metrics --run-name lme_s_extract --format html</code></td>
+            <td><code>outputs/lme_s_extract/metrics.html</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

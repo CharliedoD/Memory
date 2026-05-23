@@ -9,12 +9,10 @@ answer:
   thinking: default
 
 embedding:
-  backend: local
-  name: ${EMBEDDING_MODEL:-/home/chendong/models/Qwen3-Embedding-0.6B}
-  base_url: ""
-  api_key_env: ""
-  device: ${EMBEDDING_DEVICE:-cuda}
-  dtype: ${EMBEDDING_DTYPE:-float32}
+  backend: openai
+  name: ${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-0.6B}
+  base_url: ${EMBEDDING_BASE_URL:-http://127.0.0.1:8001/v1}
+  api_key_env: EMBEDDING_API_KEY
   dims: 1024
   max_input_bytes: 8192
   normalize: true

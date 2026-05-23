@@ -78,17 +78,18 @@ def format_context(retrieved: list[RetrievedChunk]) -> str:
     if not retrieved:
         return "None"
     blocks = []
-    for chunk in retrieved:
-        blocks.append(
-            "\n".join(
-                [
-                    f"### Memory {chunk.rank}",
-                    f"Date: {chunk.date}",
-                    "Content:",
-                    chunk.text,
-                ]
-            )
-        )
+    for display_index, chunk in enumerate(retrieved, start=1):
+        event_date = chunk.event_date or chunk.date
+        lines = [
+            f"### Memory {display_index}",
+            f"Event Date: {event_date}",
+        ]
+        if chunk.date and chunk.date != event_date:
+            lines.append(f"Session Date: {chunk.date}")
+        if chunk.role:
+            lines.append(f"Role: {chunk.role}")
+        lines.extend(["Content:", chunk.text])
+        blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
 
 
@@ -111,4 +112,3 @@ def category5_options(example: Example) -> tuple[str, str]:
     if int(digest, 16) % 2:
         options.reverse()
     return options[0], options[1]
-

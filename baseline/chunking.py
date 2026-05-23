@@ -4,40 +4,73 @@ from core.schema import Chunk, Example, Turn
 
 
 def build_chunks(example: Example, *, chunk_unit: str) -> list[Chunk]:
+    positions = _turn_positions(example.turns)
     if chunk_unit == "turn":
-        return _turn_chunks(example.turns)
+        return _turn_chunks(example.turns, positions)
     if chunk_unit == "pair":
-        return _pair_chunks(example.turns)
+        return _pair_chunks(example.turns, positions)
     if chunk_unit == "session":
         return _session_chunks(example.turns)
     raise ValueError(f"Unsupported chunk_unit: {chunk_unit}")
 
 
-def _turn_chunks(turns: list[Turn]) -> list[Chunk]:
+def _turn_chunks(turns: list[Turn], positions: list[tuple[int, str]]) -> list[Chunk]:
     chunks = []
     for index, turn in enumerate(turns):
-        text = f"{turn.role}: {turn.content}"
-        chunks.append(Chunk(chunk_id=f"turn-{index:05d}", text=text, date=turn.date, session_id=turn.session_id))
+        source_id, session_id = positions[index]
+        text = _source_line(source_id, turn)
+        chunks.append(
+            Chunk(
+                chunk_id=f"turn-{index:05d}",
+                text=text,
+                date=turn.date,
+                event_date=turn.date,
+                session_id=session_id,
+                role=turn.role,
+            )
+        )
     return chunks
 
 
-def _pair_chunks(turns: list[Turn]) -> list[Chunk]:
+def _pair_chunks(turns: list[Turn], positions: list[tuple[int, str]]) -> list[Chunk]:
     chunks: list[Chunk] = []
-    pending_user: Turn | None = None
-    for turn in turns:
+    pending_user: tuple[int, Turn] | None = None
+    for turn_index, turn in enumerate(turns):
+        if pending_user and positions[pending_user[0]][1] != positions[turn_index][1]:
+            pending_index, pending_turn = pending_user
+            chunks.append(_single_turn_chunk(len(chunks), pending_turn, positions[pending_index]))
+            pending_user = None
         if turn.role.lower() == "user":
             if pending_user:
-                chunks.append(_single_turn_chunk(len(chunks), pending_user))
-            pending_user = turn
+                pending_index, pending_turn = pending_user
+                chunks.append(_single_turn_chunk(len(chunks), pending_turn, positions[pending_index]))
+            pending_user = (turn_index, turn)
             continue
         if pending_user:
-            text = f"{pending_user.role}: {pending_user.content}\n{turn.role}: {turn.content}"
-            chunks.append(Chunk(chunk_id=f"pair-{len(chunks):05d}", text=text, date=turn.date or pending_user.date, session_id=turn.session_id or pending_user.session_id))
+            pending_index, pending_turn = pending_user
+            _source_id, session_id = positions[turn_index]
+            text = "\n".join(
+                [
+                    _source_line(positions[pending_index][0], pending_turn),
+                    _source_line(positions[turn_index][0], turn),
+                ]
+            )
+            chunks.append(
+                Chunk(
+                    chunk_id=f"pair-{len(chunks):05d}",
+                    text=text,
+                    date=turn.date or pending_turn.date,
+                    event_date=turn.date or pending_turn.date,
+                    session_id=session_id,
+                    role="mixed",
+                )
+            )
             pending_user = None
         else:
-            chunks.append(_single_turn_chunk(len(chunks), turn))
+            chunks.append(_single_turn_chunk(len(chunks), turn, positions[turn_index]))
     if pending_user:
-        chunks.append(_single_turn_chunk(len(chunks), pending_user))
+        pending_index, pending_turn = pending_user
+        chunks.append(_single_turn_chunk(len(chunks), pending_turn, positions[pending_index]))
     return chunks
 
 
@@ -46,6 +79,7 @@ def _session_chunks(turns: list[Turn]) -> list[Chunk]:
     current_session_id = None
     current_date = ""
     current_lines: list[str] = []
+    current_source_id = 0
 
     def flush() -> None:
         nonlocal current_lines, current_session_id, current_date
@@ -56,27 +90,50 @@ def _session_chunks(turns: list[Turn]) -> list[Chunk]:
                 chunk_id=f"session-{len(chunks):05d}",
                 text="\n".join(current_lines),
                 date=current_date,
+                event_date=current_date,
                 session_id=str(current_session_id or ""),
             )
         )
         current_lines = []
 
-    for turn in turns:
-        session_id = turn.session_id or f"turn-{len(chunks):05d}"
+    for turn_index, turn in enumerate(turns):
+        session_id = turn.session_id or f"turn-{turn_index:05d}"
         if current_session_id is not None and session_id != current_session_id:
             flush()
+            current_source_id = 0
+            current_date = ""
         current_session_id = session_id
         current_date = turn.date or current_date
-        current_lines.append(f"{turn.role}: {turn.content}")
+        current_lines.append(_source_line(current_source_id, turn))
+        current_source_id += 1
 
     flush()
     return chunks
 
 
-def _single_turn_chunk(index: int, turn: Turn) -> Chunk:
+def _single_turn_chunk(index: int, turn: Turn, position: tuple[int, str]) -> Chunk:
+    source_id, session_id = position
     return Chunk(
         chunk_id=f"turn-{index:05d}",
-        text=f"{turn.role}: {turn.content}",
+        text=_source_line(source_id, turn),
         date=turn.date,
-        session_id=turn.session_id,
+        event_date=turn.date,
+        session_id=session_id,
+        role=turn.role,
     )
+
+
+def _turn_positions(turns: list[Turn]) -> list[tuple[int, str]]:
+    source_counts: dict[str, int] = {}
+    positions: list[tuple[int, str]] = []
+    for index, turn in enumerate(turns):
+        session_id = turn.session_id or f"turn-{index:05d}"
+        source_id = source_counts.get(session_id, 0)
+        source_counts[session_id] = source_id + 1
+        positions.append((source_id, session_id))
+    return positions
+
+
+def _source_line(source_id: int, turn: Turn) -> str:
+    role = turn.role or "unknown"
+    return f"[source_id={source_id}] [role={role}] {turn.content}"
