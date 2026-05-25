@@ -316,7 +316,6 @@ def main() -> None:
             for index, example in pending:
                 try:
                     record = baseline.answer(example, store_dir)
-                    record["index"] = index
                     write_record(record)
                     log(f"[{index}/{total}] done {example.sample_id} answer={record['hypothesis'][:80]!r}")
                 except Exception as exc:

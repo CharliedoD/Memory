@@ -114,15 +114,15 @@ class NaiveRagBaseline:
         top_k = int(self.config["retrieval"]["top_k"])
         retrieved = retrieve_top_k(chunks, embeddings, query_embedding.vectors[0], top_k)
         retrieved = sort_retrieved_timeline(retrieved)
-        retrieved_chunks = [chunk.to_dict() for chunk in retrieved]
         retrieved_session_ids = unique_nonempty(chunk.session_id for chunk in retrieved)
         gold_session_ids = [str(value) for value in example.metadata.get("answer_session_ids", [])]
         recall_stats = evidence_recall(gold_session_ids, retrieved_session_ids)
+        answer_prompt = answer_messages(example, retrieved)
 
         answer_cfg = self.config["answer"]
         result = self.answer_client.complete(
             model=str(answer_cfg["name"]),
-            messages=answer_messages(example, retrieved),
+            messages=answer_prompt,
             temperature=float(answer_cfg["temperature"]),
             max_tokens=int(answer_cfg["max_tokens"]),
             thinking=str(answer_cfg.get("thinking", "default")),
@@ -142,19 +142,9 @@ class NaiveRagBaseline:
             "answer": example.answer,
             "hypothesis": hypothesis,
             "raw_response": result.content,
-            "method": "naive_rag_baseline",
-            "model": answer_cfg["name"],
-            "embedding_model": self.config["embedding"]["name"],
-            "memory_mode": build_stats.get("memory_mode", "raw"),
-            "chunk_unit": build_stats.get("chunk_unit"),
-            "top_k": top_k,
-            "context_order": "event_date_session_date_rank",
+            "answer_prompt": answer_prompt,
             "gold_session_ids": gold_session_ids,
-            "retrieved_session_ids": retrieved_session_ids,
-            "retrieved_chunks": retrieved_chunks,
             **recall_stats,
-            "num_chunks": build_stats.get("num_chunks", len(chunks)),
-            "build_tokens": extraction_tokens,
             "extraction_tokens": extraction_tokens,
             "embedding_build_tokens": embedding_build_tokens,
             "query_tokens": query_tokens,
