@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import time
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -14,6 +15,7 @@ from core.llm import ChatClient
 from core.schema import Chunk, Example, RetrievedChunk
 from prompts.answer import answer_messages, parse_answer
 from prompts.extract import extraction_messages, parse_extracted_memories
+from prompts.query_rewrite import parse_retrieval_queries, query_rewrite_messages
 
 
 class NaiveRagBaseline:
@@ -110,18 +112,16 @@ class NaiveRagBaseline:
     def answer(self, example: Example, store_dir: Path) -> dict[str, Any]:
         started = time.time()
         chunks, embeddings, build_stats = load_store(store_dir)
-        query_embedding = self.embedding_client.embed_query(retrieval_query_text(example))
         retrieval_cfg = self.config["retrieval"]
         top_k = int(retrieval_cfg["top_k"])
-        retrieved = retrieve_top_k(
-            chunks,
-            embeddings,
-            query_embedding.vectors[0],
-            top_k,
-            query_text=example.question,
-            keyword_enabled=bool(retrieval_cfg.get("keyword_enabled", True)),
-            overfetch_multiplier=int(retrieval_cfg.get("overfetch_multiplier", 4)),
-            overfetch_min=int(retrieval_cfg.get("overfetch_min", 60)),
+        retrieval_queries, rewrite_tokens = self.rewrite_retrieval_queries(example)
+        retrieved, retrieval_embedding_tokens = retrieve_from_queries(
+            chunks=chunks,
+            embeddings=embeddings,
+            embedding_client=self.embedding_client,
+            retrieval_queries=retrieval_queries,
+            top_k=top_k,
+            retrieval_cfg=retrieval_cfg,
         )
         retrieved = sort_retrieved_timeline(retrieved)
         retrieved_session_ids = unique_nonempty(chunk.session_id for chunk in retrieved)
@@ -139,7 +139,7 @@ class NaiveRagBaseline:
             response_format={"type": "json_object"},
         )
         hypothesis = parse_answer(result.content)
-        query_tokens = query_embedding.tokens + result.tokens
+        query_tokens = rewrite_tokens + retrieval_embedding_tokens + result.tokens
         extraction_tokens = int(build_stats.get("extraction_tokens", 0))
         embedding_build_tokens = int(build_stats.get("build_tokens", 0))
         return {
@@ -149,6 +149,7 @@ class NaiveRagBaseline:
             "question": example.question,
             "question_date": example.question_date,
             "question_type": example.question_type,
+            "retrieval_queries": retrieval_queries,
             "answer": example.answer,
             "hypothesis": hypothesis,
             "raw_response": result.content,
@@ -162,6 +163,30 @@ class NaiveRagBaseline:
             "query_time_seconds": round(time.time() - started, 3),
             "error": None,
         }
+
+    def rewrite_retrieval_queries(self, example: Example) -> tuple[list[str], int]:
+        retrieval_cfg = self.config["retrieval"]
+        if not bool(retrieval_cfg.get("query_rewrite_enabled", True)):
+            return [retrieval_query_text(example)], 0
+
+        max_queries = int(retrieval_cfg.get("query_rewrite_max_queries", 4))
+        if max_queries <= 0:
+            return [retrieval_query_text(example)], 0
+
+        answer_cfg = self.config["answer"]
+        try:
+            result = self.answer_client.complete(
+                model=str(answer_cfg["name"]),
+                messages=query_rewrite_messages(example, max_queries=max_queries),
+                temperature=float(retrieval_cfg.get("query_rewrite_temperature", 0.0)),
+                max_tokens=int(retrieval_cfg.get("query_rewrite_max_tokens", 512)),
+                thinking=str(answer_cfg.get("thinking", "default")),
+                response_format={"type": "json_object"},
+            )
+            queries = parse_retrieval_queries(result.content, max_queries=max_queries)
+            return (queries or [retrieval_query_text(example)]), result.tokens
+        except Exception:
+            return [retrieval_query_text(example)], 0
 
 
 def embedding_text(chunk: Any) -> str:
@@ -178,6 +203,57 @@ def retrieval_query_text(example: Example) -> str:
     if example.question_date:
         return f"Current Date: {example.question_date}\nQuestion: {example.question}"
     return example.question
+
+
+def retrieve_from_queries(
+    *,
+    chunks: list[Chunk],
+    embeddings: Any,
+    embedding_client: EmbeddingClient,
+    retrieval_queries: list[str],
+    top_k: int,
+    retrieval_cfg: dict[str, Any],
+) -> tuple[list[RetrievedChunk], int]:
+    per_query_top_k = int(retrieval_cfg.get("query_rewrite_top_k_per_query", top_k))
+    per_query_top_k = max(1, per_query_top_k)
+    if len(retrieval_queries) <= 1:
+        per_query_top_k = max(per_query_top_k, top_k)
+    retrieved_lists: list[list[RetrievedChunk]] = []
+    embedding_tokens = 0
+    for query in retrieval_queries:
+        embedded = embedding_client.embed_query(query)
+        embedding_tokens += embedded.tokens
+        retrieved_lists.append(
+            retrieve_top_k(
+                chunks,
+                embeddings,
+                embedded.vectors[0],
+                per_query_top_k,
+                query_text=query,
+                keyword_enabled=bool(retrieval_cfg.get("keyword_enabled", True)),
+                overfetch_multiplier=int(retrieval_cfg.get("overfetch_multiplier", 4)),
+                overfetch_min=int(retrieval_cfg.get("overfetch_min", 60)),
+            )
+        )
+    return merge_retrieved_round_robin(retrieved_lists, top_k), embedding_tokens
+
+
+def merge_retrieved_round_robin(retrieved_lists: list[list[RetrievedChunk]], limit: int) -> list[RetrievedChunk]:
+    merged: list[RetrievedChunk] = []
+    seen: set[str] = set()
+    max_length = max((len(items) for items in retrieved_lists), default=0)
+    for index in range(max_length):
+        for retrieved in retrieved_lists:
+            if index >= len(retrieved):
+                continue
+            chunk = retrieved[index]
+            if chunk.chunk_id in seen:
+                continue
+            seen.add(chunk.chunk_id)
+            merged.append(replace(chunk, rank=len(merged) + 1))
+            if len(merged) >= limit:
+                return merged
+    return merged
 
 
 def sort_retrieved_timeline(retrieved: list[RetrievedChunk]) -> list[RetrievedChunk]:

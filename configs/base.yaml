@@ -34,6 +34,11 @@ retrieval:
   keyword_enabled: true
   overfetch_multiplier: 4
   overfetch_min: 60
+  query_rewrite_enabled: true
+  query_rewrite_max_queries: 4
+  query_rewrite_top_k_per_query: 10
+  query_rewrite_max_tokens: 512
+  query_rewrite_temperature: 0.0
 
 memory:
   mode: raw
