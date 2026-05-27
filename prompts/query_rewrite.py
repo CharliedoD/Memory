@@ -4,35 +4,31 @@ from core.llm import extract_json_object
 from core.schema import Example
 
 
-QUERY_REWRITE_SYSTEM_PROMPT = """You rewrite user questions into evidence retrieval queries for a memory system.
+QUERY_REWRITE_SYSTEM_PROMPT = """You rewrite user questions into a single evidence retrieval query for a memory system.
 
 Rules:
 - Do not answer the question.
-- Generate short search queries that directly retrieve the facts needed to answer.
-- If the question compares, orders, or calculates time across multiple events, create one query per event.
+- Generate exactly one concise search query that directly retrieves the facts needed to answer.
 - Preserve concrete entities, objects, dates, quantities, locations, and named activities from the question.
 - If the question date matters, include it only when it helps retrieve relative-date evidence.
-- Avoid generic words like "which happened first" unless they are part of a concrete event.
+- Remove generic wording like "which happened first", "how many days", or "what was the answer" when it does not help retrieval.
+- Keep all key evidence targets in the same query instead of splitting them into multiple queries.
 - Return only valid JSON.
 
 Output format:
 {
-  "queries": [
-    "first evidence query",
-    "second evidence query"
-  ]
+  "query": "single rewritten evidence query"
 }
 """
 
 
-def query_rewrite_messages(example: Example, max_queries: int) -> list[dict[str, str]]:
+def query_rewrite_messages(example: Example) -> list[dict[str, str]]:
     question = example.question
     if example.question_date:
         question = f"Question Date: {example.question_date}\nQuestion: {example.question}"
     user_prompt = "\n\n".join(
         [
-            "Rewrite the question into evidence retrieval queries.",
-            f"Maximum queries: {max_queries}",
+            "Rewrite the question into one evidence retrieval query.",
             question,
             "Return JSON only.",
         ]
@@ -43,25 +39,11 @@ def query_rewrite_messages(example: Example, max_queries: int) -> list[dict[str,
     ]
 
 
-def parse_retrieval_queries(raw_response: str, *, max_queries: int) -> list[str]:
+def parse_retrieval_query(raw_response: str) -> str:
     value = extract_json_object(raw_response)
     if not value:
-        return []
-    raw_queries = value.get("queries") or value.get("query") or value.get("search_queries")
-    if isinstance(raw_queries, str):
-        raw_queries = [raw_queries]
-    if not isinstance(raw_queries, list):
-        return []
-
-    queries: list[str] = []
-    seen: set[str] = set()
-    for item in raw_queries:
-        query = str(item or "").strip()
-        key = " ".join(query.lower().split())
-        if not query or key in seen:
-            continue
-        seen.add(key)
-        queries.append(query)
-        if len(queries) >= max_queries:
-            break
-    return queries
+        return ""
+    raw_query = value.get("query") or value.get("retrieval_query") or value.get("search_query")
+    if isinstance(raw_query, list):
+        raw_query = " ".join(str(item or "").strip() for item in raw_query if str(item or "").strip())
+    return str(raw_query or "").strip()
