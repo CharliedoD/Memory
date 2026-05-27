@@ -13,7 +13,7 @@ from core.embedding import EmbeddingClient
 from core.llm import ChatClient
 from core.schema import Chunk, Example, RetrievedChunk
 from prompts.answer import answer_messages, parse_answer
-from prompts.extract import extraction_messages, parse_extracted_memories
+from prompts.extract import extraction_messages, parse_rewritten_memories
 from prompts.query_rewrite import parse_retrieval_query, query_rewrite_messages
 
 
@@ -80,16 +80,14 @@ class NaiveRagBaseline:
                 response_format={"type": "json_object"},
             )
             total_tokens += result.tokens
-            memories = parse_extracted_memories(result.content)
-            for index, memory in enumerate(memories):
+            memories = parse_rewritten_memories(result.content)
+            for memory in memories[:1]:
                 extracted_chunks.append(
                     Chunk(
-                        chunk_id=f"extract-{source.chunk_id}-{index:02d}",
+                        chunk_id=f"rewrite-{source.chunk_id}",
                         text=memory.text,
                         date=source.date,
-                        event_date=clean_event_date(memory.event_date, source.event_date or source.date),
                         session_id=source.session_id,
-                        role=memory.role,
                     )
                 )
             if progress_callback:
