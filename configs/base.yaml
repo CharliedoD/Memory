@@ -31,6 +31,9 @@ judge:
 retrieval:
   chunk_unit: pair
   top_k: 10
+  keyword_enabled: true
+  overfetch_multiplier: 4
+  overfetch_min: 60
 
 memory:
   mode: raw

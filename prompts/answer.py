@@ -82,10 +82,8 @@ def format_context(retrieved: list[RetrievedChunk]) -> str:
         event_date = chunk.event_date or chunk.date
         lines = [
             f"### Memory {display_index}",
-            f"Event Date: {event_date}",
+            f"Date: {event_date}",
         ]
-        if chunk.date and chunk.date != event_date:
-            lines.append(f"Session Date: {chunk.date}")
         if chunk.role:
             lines.append(f"Role: {chunk.role}")
         lines.extend(["Content:", chunk.text])

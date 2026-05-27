@@ -111,8 +111,18 @@ class NaiveRagBaseline:
         started = time.time()
         chunks, embeddings, build_stats = load_store(store_dir)
         query_embedding = self.embedding_client.embed_query(retrieval_query_text(example))
-        top_k = int(self.config["retrieval"]["top_k"])
-        retrieved = retrieve_top_k(chunks, embeddings, query_embedding.vectors[0], top_k)
+        retrieval_cfg = self.config["retrieval"]
+        top_k = int(retrieval_cfg["top_k"])
+        retrieved = retrieve_top_k(
+            chunks,
+            embeddings,
+            query_embedding.vectors[0],
+            top_k,
+            query_text=example.question,
+            keyword_enabled=bool(retrieval_cfg.get("keyword_enabled", True)),
+            overfetch_multiplier=int(retrieval_cfg.get("overfetch_multiplier", 4)),
+            overfetch_min=int(retrieval_cfg.get("overfetch_min", 60)),
+        )
         retrieved = sort_retrieved_timeline(retrieved)
         retrieved_session_ids = unique_nonempty(chunk.session_id for chunk in retrieved)
         gold_session_ids = [str(value) for value in example.metadata.get("answer_session_ids", [])]
