@@ -14,6 +14,7 @@ from baseline.pipeline import NaiveRagBaseline
 from baseline.store import store_exists
 from core.config import expand_env_vars, get_config, load_config, set_if_not_none
 from core.embedding import EmbeddingClient
+from core.html_report import write_predictions_html
 from core.io import TeeLogger, append_jsonl, completed_ids, load_env_file
 from core.llm import ChatClient
 from core.schema import Example
@@ -353,6 +354,9 @@ def main() -> None:
 
         if args.mode == "build":
             log(f"build done: {len(groups)} memory stores")
+        elif out.exists():
+            html_path = write_predictions_html(out, title=f"{args.run_name or out.stem} predictions")
+            log(f"html report written: {html_path}")
         log("run done")
 
 
