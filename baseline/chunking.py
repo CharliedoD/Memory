@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import re
+
 from core.schema import Chunk, Example, Turn
 
 
 def build_chunks(example: Example, *, chunk_unit: str) -> list[Chunk]:
     positions = _turn_positions(example.turns)
+    if chunk_unit == "sentence":
+        return _sentence_chunks(example.turns, positions)
     if chunk_unit == "turn":
         return _turn_chunks(example.turns, positions)
     if chunk_unit == "pair":
@@ -12,6 +16,22 @@ def build_chunks(example: Example, *, chunk_unit: str) -> list[Chunk]:
     if chunk_unit == "session":
         return _session_chunks(example.turns)
     raise ValueError(f"Unsupported chunk_unit: {chunk_unit}")
+
+
+def _sentence_chunks(turns: list[Turn], positions: list[tuple[int, str]]) -> list[Chunk]:
+    chunks: list[Chunk] = []
+    for turn_index, turn in enumerate(turns):
+        _source_id, session_id = positions[turn_index]
+        for sentence in split_sentences(turn.content):
+            chunks.append(
+                Chunk(
+                    chunk_id=f"sentence-{len(chunks):05d}",
+                    text=_role_line(Turn(role=turn.role, content=sentence)),
+                    date=turn.date,
+                    session_id=session_id,
+                )
+            )
+    return chunks
 
 
 def _turn_chunks(turns: list[Turn], positions: list[tuple[int, str]]) -> list[Chunk]:
@@ -127,3 +147,11 @@ def _turn_positions(turns: list[Turn]) -> list[tuple[int, str]]:
 def _role_line(turn: Turn) -> str:
     role = turn.role or "unknown"
     return f"{role}: {turn.content}"
+
+
+def split_sentences(text: str) -> list[str]:
+    normalized = " ".join(str(text or "").split())
+    if not normalized:
+        return []
+    sentences = re.findall(r"[^.!?。！？]+[.!?。！？]?", normalized)
+    return [sentence.strip() for sentence in sentences if sentence.strip()]

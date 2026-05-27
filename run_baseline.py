@@ -37,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--mode", choices=("full", "build", "query", "answer"), default="full")
     parser.add_argument("--memory-mode", choices=("raw", "extract"), default=None)
-    parser.add_argument("--chunk-unit", choices=("turn", "pair", "session"), default=None)
+    parser.add_argument("--chunk-unit", choices=("sentence", "turn", "pair", "session"), default=None)
     parser.add_argument("--top-k", type=int, default=None)
     parser.add_argument("--question-type", type=str, default=None)
     parser.add_argument("--limit", type=int, default=0)
