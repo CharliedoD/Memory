@@ -35,7 +35,8 @@ class Chunk:
     role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        value = asdict(self)
+        return {key: item for key, item in value.items() if item != ""}
 
 
 @dataclass(frozen=True)

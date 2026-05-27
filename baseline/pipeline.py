@@ -190,12 +190,14 @@ class NaiveRagBaseline:
 
 
 def embedding_text(chunk: Any) -> str:
-    event_date = getattr(chunk, "event_date", "") or getattr(chunk, "date", "")
+    event_date = getattr(chunk, "event_date", "")
     session_date = getattr(chunk, "date", "")
     if event_date and session_date and event_date != session_date:
         return f"Event Date: {event_date}\nSession Date: {session_date}\nContent: {chunk.text}"
     if event_date:
         return f"Event Date: {event_date}\nContent: {chunk.text}"
+    if session_date:
+        return f"Date: {session_date}\nContent: {chunk.text}"
     return chunk.text
 
 

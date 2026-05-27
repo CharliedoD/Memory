@@ -17,16 +17,14 @@ def build_chunks(example: Example, *, chunk_unit: str) -> list[Chunk]:
 def _turn_chunks(turns: list[Turn], positions: list[tuple[int, str]]) -> list[Chunk]:
     chunks = []
     for index, turn in enumerate(turns):
-        source_id, session_id = positions[index]
-        text = _source_line(source_id, turn)
+        _source_id, session_id = positions[index]
+        text = _role_line(turn)
         chunks.append(
             Chunk(
                 chunk_id=f"turn-{index:05d}",
                 text=text,
                 date=turn.date,
-                event_date=turn.date,
                 session_id=session_id,
-                role=turn.role,
             )
         )
     return chunks
@@ -51,8 +49,8 @@ def _pair_chunks(turns: list[Turn], positions: list[tuple[int, str]]) -> list[Ch
             _source_id, session_id = positions[turn_index]
             text = "\n".join(
                 [
-                    _source_line(positions[pending_index][0], pending_turn),
-                    _source_line(positions[turn_index][0], turn),
+                    _role_line(pending_turn),
+                    _role_line(turn),
                 ]
             )
             chunks.append(
@@ -60,9 +58,7 @@ def _pair_chunks(turns: list[Turn], positions: list[tuple[int, str]]) -> list[Ch
                     chunk_id=f"pair-{len(chunks):05d}",
                     text=text,
                     date=turn.date or pending_turn.date,
-                    event_date=turn.date or pending_turn.date,
                     session_id=session_id,
-                    role="mixed",
                 )
             )
             pending_user = None
@@ -79,7 +75,6 @@ def _session_chunks(turns: list[Turn]) -> list[Chunk]:
     current_session_id = None
     current_date = ""
     current_lines: list[str] = []
-    current_source_id = 0
 
     def flush() -> None:
         nonlocal current_lines, current_session_id, current_date
@@ -90,7 +85,6 @@ def _session_chunks(turns: list[Turn]) -> list[Chunk]:
                 chunk_id=f"session-{len(chunks):05d}",
                 text="\n".join(current_lines),
                 date=current_date,
-                event_date=current_date,
                 session_id=str(current_session_id or ""),
             )
         )
@@ -100,26 +94,22 @@ def _session_chunks(turns: list[Turn]) -> list[Chunk]:
         session_id = turn.session_id or f"turn-{turn_index:05d}"
         if current_session_id is not None and session_id != current_session_id:
             flush()
-            current_source_id = 0
             current_date = ""
         current_session_id = session_id
         current_date = turn.date or current_date
-        current_lines.append(_source_line(current_source_id, turn))
-        current_source_id += 1
+        current_lines.append(_role_line(turn))
 
     flush()
     return chunks
 
 
 def _single_turn_chunk(index: int, turn: Turn, position: tuple[int, str]) -> Chunk:
-    source_id, session_id = position
+    _source_id, session_id = position
     return Chunk(
         chunk_id=f"turn-{index:05d}",
-        text=_source_line(source_id, turn),
+        text=_role_line(turn),
         date=turn.date,
-        event_date=turn.date,
         session_id=session_id,
-        role=turn.role,
     )
 
 
@@ -134,6 +124,6 @@ def _turn_positions(turns: list[Turn]) -> list[tuple[int, str]]:
     return positions
 
 
-def _source_line(source_id: int, turn: Turn) -> str:
+def _role_line(turn: Turn) -> str:
     role = turn.role or "unknown"
-    return f"[source_id={source_id}] [role={role}] {turn.content}"
+    return f"{role}: {turn.content}"

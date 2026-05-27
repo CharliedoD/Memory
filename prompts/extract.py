@@ -26,7 +26,7 @@ Rules:
 - Use ISO format YYYY-MM-DD when a specific day is known. If only month/year or year is known, preserve that granularity as YYYY-MM or YYYY.
 - Never output relative phrases such as "yesterday", "last week", or "three days ago" in event_date.
 - Split distinct events or facts into separate memories.
-- Each input message is prefixed with [source_id=N] [role=...]. For every memory, copy the role of the message that most directly supports it.
+- Each input message is prefixed with a role label such as "user:" or "assistant:". For every memory, copy the role of the message that most directly supports it.
 - If a memory is supported by multiple messages, use the role of the message containing the main new fact.
 - Do not extract greetings, filler, or generic acknowledgements.
 - Return only valid JSON.
@@ -48,7 +48,7 @@ def extraction_messages(chunk: Chunk) -> list[dict[str, str]]:
         [
             f"Observation Date: {chunk.date or 'unknown'}",
             f"Session ID: {chunk.session_id or 'unknown'}",
-            "Numbered Messages:",
+            "Messages:",
             chunk.text,
             "Return JSON only.",
         ]

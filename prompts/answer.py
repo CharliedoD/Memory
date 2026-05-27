@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Any
 
 from core.llm import extract_json_object
@@ -84,11 +85,15 @@ def format_context(retrieved: list[RetrievedChunk]) -> str:
             f"### Memory {display_index}",
             f"Date: {event_date}",
         ]
-        if chunk.role:
+        if chunk.role and chunk.role.lower() != "mixed":
             lines.append(f"Role: {chunk.role}")
-        lines.extend(["Content:", chunk.text])
+        lines.extend(["Content:", clean_context_text(chunk.text)])
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
+
+
+def clean_context_text(text: str) -> str:
+    return re.sub(r"\[source_id=\d+\]\s*", "", text).strip()
 
 
 def parse_answer(raw_response: str) -> str:
